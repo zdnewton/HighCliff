@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>High Cliff State Park</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="" />
+  
+  <!--Calls ArcGIS API's CSS file and JS Library-->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/dark/main.css">
+  <script src="https://js.arcgis.com/4.31/"></script>
+  
+<!--css to make the map full screen-->
+  <style>   
+    html,  
+    body,  
+    #viewDiv {  
+      padding: 0;  
+      margin: 0;  
+      height: 100%;  
+      width: 100%;  
+    }  
+  </style>
+
+<script>
+  require([
+    "esri/Map",
+    "esri/views/MapView",
+    "esri/layers/FeatureLayer" 
+  ], function(Map, MapView,FeatureLayer) {
+    
+    //Create a Map
+    var map = new Map({
+      basemap: "topo" //Basemap layer
+    });
+    
+    //Create a MapView
+    var view = new MapView({
+      container: "viewDiv", //Div element
+      map: map, //Map reference
+      center: [-88.29097,44.1541], //Long, Lat
+      zoom: 14 //Zoom level
+    });
+    
+    // Create featurelayer from feature service 
+    const POIlayer = new FeatureLayer({ 
+    // URL to the service
+        title: "POIs", 
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/2",
+            
+    });
+    
+    const Trails = new FeatureLayer({ 
+    // URL to the service
+        title: "Trails", 
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/3",
+            
+    });
+    
+    const ParkingLots = new FeatureLayer({ 
+    // URL to the service
+        title: "Parking Lots", 
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/0",
+            
+    });
+    
+    const ParkBoundary = new FeatureLayer({ 
+    // URL to the service
+        title: "Park Boundary", 
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/4",
+            
+    });
+
+    // add layer to the map
+    map.add(ParkBoundary);
+    map.add(ParkingLots);
+    map.add(Trails);
+    map.add(POIlayer);
+    
+  });
+  </script>
+
+</head>
+<body>
+  
+  <!--Div to display the Map-->
+  <div id="viewDiv"></div> 
+
+</body>
+</html>
