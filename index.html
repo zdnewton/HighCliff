@@ -7,27 +7,62 @@
   <meta name="description" content="" />
   
   <!--Calls ArcGIS API's CSS file and JS Library-->
+  <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/dark/main.css">
   <script src="https://js.arcgis.com/4.31/"></script>
   
-<!--css to make the map full screen-->
-  <style>   
-    html,  
-    body,  
-    #viewDiv {  
-      padding: 0;  
-      margin: 0;  
-      height: 100%;  
-      width: 100%;  
-    }  
+<!--css to make the map full screen and position the nav -->
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+
+    /* Top nav sits above the map */
+    #nav {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      background: linear-gradient(180deg,#0b5aa5 0%, #0860a0 100%);
+      color: #fff;
+      z-index: 9999;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    /* Make the map fill the area below the nav */
+    #viewDiv {
+      position: absolute;
+      top: 64px; /* same as nav height */
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: auto;
+    }
   </style>
 
 <script>
   require([
     "esri/Map",
     "esri/views/MapView",
-    "esri/layers/FeatureLayer" 
-  ], function(Map, MapView,FeatureLayer) {
+    "esri/layers/FeatureLayer",
+    "esri/layers/ImageryTileLayer",
+	  "esri/widgets/Locate",
+	  "esri/widgets/Compass",
+	  "esri/geometry/Extent",
+    "esri/renderers/UniqueValueRenderer",
+    "esri/widgets/Legend",
+    "esri/widgets/Expand",
+    "esri/widgets/Home"
+  ], function(Map, MapView,FeatureLayer,ImageryTileLayer, Locate, Compass, Extent, UniqueValueRenderer, Legend, Expand, Home) {
     
     //Create a Map
     var map = new Map({
@@ -38,10 +73,12 @@
     var view = new MapView({
       container: "viewDiv", //Div element
       map: map, //Map reference
-      center: [-88.29097,44.1541], //Long, Lat
+      center: [-88.29300,44.1541], //Long, Lat
       zoom: 14 //Zoom level
     });
     
+	  view.rotation = -15;
+	
     // Create featurelayer from feature service 
     const POIlayer = new FeatureLayer({ 
     // URL to the service
@@ -49,42 +86,340 @@
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/2",
             
     });
-    
+
+  // Expose POI color map to outer scope for use by renderer
+    const poiColorMap = {
+      0: { label: 'Tower', color: '#6b6b6b' },
+      1: { label: 'Picnic Area', color: '#2e8b57' },
+      2: { label: 'Pet Picnic Area', color: '#ff8c00' },
+      3: { label: 'Playground Equipment', color: '#8a2be2' },
+      4: { label: 'Community Fire Ring', color: '#d62728' },
+      5: { label: 'Restored Silo', color: '#a0522d' },
+      6: { label: 'Flush Toilet', color: '#1f77b4' },
+      7: { label: 'Vault Toilet', color: '#17becf' },
+      8: { label: 'Shower', color: '#00bfff' },
+      9: { label: 'Trailer Dumping Station', color: '#ff7f0e' },
+      10: { label: 'Water Fountain', color: '#4cc3d9' },
+      11: { label: 'Scenic Overlook', color: '#bcbd22' },
+      12: { label: 'Emergency Access', color: '#7f0000' }
+  };
+
+    POIlayer.load().then(function() {
+      const field = (POIlayer.fields || []).find(f => /type|category|poi|class/i.test(f.name));
+      const fieldName = field ? field.name : 'Type';
+
+      const uniqueInfos = Object.keys(poiColorMap).map(function(key) {
+        const info = poiColorMap[key];
+        return {
+          value: Number(key),
+          label: info.label,
+          symbol: {
+            type: 'simple-marker',
+            style: 'circle',
+            color: info.color,
+            size: '12px',
+            outline: { color: '#ffffff', width: 1 }
+          }
+        };
+      });
+
+      const poiRenderer = new UniqueValueRenderer({
+        field: fieldName,
+        defaultLabel: 'Other POI',
+        uniqueValueInfos: uniqueInfos
+      });
+
+      POIlayer.renderer = poiRenderer;
+      try { POIlayer.refresh(); } catch (e) { /* ignore if not applicable */ }
+    }).catch(function(err){
+      console.error('Error loading POI layer to set color renderer', err);
+    });
+
+    const TrailsRenderer = new UniqueValueRenderer({
+      field: "TrailType",
+      defaultlabel: "Other",
+      defaultSymbol: {
+        type: "simple-line",
+        color: [150, 150, 150, 1],
+        width: 1.5
+      },
+      uniqueValueInfos: [
+      {
+        value: "0",
+        label: "Hiking Trails",
+        symbol: {
+          type: "simple-line",
+          color: [0,255,0,1],
+          width: 1.5,
+          style: "short-dash"
+        },
+      },
+      {
+        value: "1",
+        label: "Hiking/Biking Trails",
+        symbol: {
+          type: "simple-line",
+          color: [255,0,0,1],
+          width: 1.5,
+          style: "short-dash"
+        }
+      },
+      {
+        value: "2",
+        label: "Horse/Biking Trails",
+        symbol: {
+          type: "simple-line",
+          color: [255,255,0,1],
+          width: 1.5,
+          style: "short-dash"
+        }
+      },
+      {
+        value: "3",
+        label: "Cross Country Skiing Trails",
+        symbol: {
+          type: "simple-line",
+          color: [0,0,255,1],
+          width: 1.5,
+          style: "short-dash"
+        }
+      },
+      {
+        value: "4",
+        label: "Access Trails",
+        symbol: {
+          type: "simple-line",
+          color: [125,125,125,1],
+          width: 1.5,
+          style: "short-dash"
+        }
+      }
+    ]}
+    );
+
     const Trails = new FeatureLayer({ 
     // URL to the service
         title: "Trails", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/3",
-            
+        renderer: TrailsRenderer,
+        outFields: ["*"]   
     });
     
+	const ParkingfillSymbol = {
+      type: "simple-fill",	  // autocasts as new SimpleFillSymbol()
+	    color: [128,128,128,.75],
+      outline: {
+        color: [0, 0, 0, .75], // Black outline
+        width: .5
+      }
+    };
+	
+    const ParkingRenderer = {
+      type: "simple", // autocasts as new SimpleRenderer()
+      symbol: ParkingfillSymbol
+    };	    
     const ParkingLots = new FeatureLayer({ 
     // URL to the service
         title: "Parking Lots", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/0",
+		    renderer: ParkingRenderer
             
     });
-    
+    const ParkfillSymbol = {
+      type: "simple-fill",	  // autocasts as new SimpleFillSymbol()
+	  style: "none",
+      outline: {
+        color: [0, 0, 0], // Black outline
+        width: 2
+      }
+    };
+	
+    const ParkBoundaryRenderer = {
+      type: "simple", // autocasts as new SimpleRenderer()
+      symbol: ParkfillSymbol
+    };	
+	
     const ParkBoundary = new FeatureLayer({ 
     // URL to the service
         title: "Park Boundary", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/4",
+		  renderer: ParkBoundaryRenderer
             
     });
+    
+	const StructurePolygon = new FeatureLayer({ 
+    // URL to the service
+        title: "Structure Polygons", 
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/1",
+            
+    });    
+	
+   // Creates locator button 
+   const locateBtn = new Locate({
+      view: view
+    });
 
-    // add layer to the map
+  // Create a new Compass widget
+ 	const compass = new Compass({
+ 		view: view
+ 	});
+
+  // Create a Home button to return to the initial extent/viewpoint
+  const homeBtn = new Home({
+   view: view
+  });
+
+  // Creates a legend
+  const legend = new Legend({
+      view: view,
+      layerInfos: [
+        {
+          layer: Trails,
+          title: "Trails"
+        },
+        {
+          layer: POIlayer,
+          title: "POIs"
+        }
+      ]
+  });
+
+  // Allows Legend feature to collapse
+  let legendExpand = new Expand({
+    expandIcon: "legend",           // sets icon of widget button
+    view: view,         
+    content: legend,  
+    expanded: false                 // Sets to default collapsed
+  });
+
+  
+
+  // Add the Compass widget to the bottom-right corner of the view
+  view.ui.add(compass, "bottom-right"); 
+	
+  // Place Home above the built-in zoom controls in the top-left, then zoom, then our locate button
+  view.ui.add(homeBtn, { position: "top-left", index: 0 });
+  view.ui.add(locateBtn, { position: "top-left", index: 2 });
+	
+  // Add the legend to the bottom right corner of the view
+  view.ui.add(legendExpand, "top-right");
+	
+  // add layer to the map
     map.add(ParkBoundary);
     map.add(ParkingLots);
+	  map.add(StructurePolygon);
     map.add(Trails);
     map.add(POIlayer);
+    // --- Season filter support for Trails layer ---
+    // Use an explicit field name: Season
+    const seasonFieldName = "Season";
+
+    function setSeasonFilter(season) {
+      // Season is stored as integers: 0 = Both, 1 = Summer, 2 = Winter
+      const allowed = season.toLowerCase() === 'summer' ? '(0,1)' : '(0,2)';
+      // numeric comparison; no UPPER needed
+      Trails.definitionExpression = `"${seasonFieldName}" IN ${allowed}`;
+    }
+
+    // Wait until the Trails layer is loaded to confirm the field exists
+    Trails.load().then(function() {
+      const hasField = Trails.fields && Trails.fields.some(ff => ff.name === seasonFieldName);
+      const checkbox = document.getElementById('seasonToggle');
+      if (!hasField) {
+        console.warn(`Field '${seasonFieldName}' not found on Trails layer; season toggle disabled.`);
+        if (checkbox) checkbox.disabled = true;
+        return;
+      }
+      // default to Summer (unchecked = summer)
+      if (checkbox) {
+        checkbox.checked = false;
+        setSeasonFilter('summer');
+        checkbox.addEventListener('change', function() {
+          const s = this.checked ? 'winter' : 'summer';
+          setSeasonFilter(s);
+        });
+      }
+    }).catch(function(err){
+      console.error('Error loading Trails layer fields', err);
+      const checkbox = document.getElementById('seasonToggle');
+      if (checkbox) checkbox.disabled = true;
+    });
     
   });
   </script>
 
 </head>
 <body>
-  
+   <div id="nav">  
+      <div class="nav-left">
+        <div class="brand-logo" aria-hidden="true">HC</div>
+        <div class="brand-text">
+          <div class="site-title">Highcliff State Park</div>
+          <div class="site-sub">Trail Map</div>
+        </div>
+      </div>
+      <div class="nav-right">
+        <button id="aboutBtn" class="about-btn" aria-haspopup="dialog">About</button>
+        <div class="season-toggle" title="Show Summer or Winter trails">
+          <span class="toggle-label">Summer</span>
+          <label class="switch">
+            <input type="checkbox" id="seasonToggle" aria-label="Toggle season">
+            <span class="slider"></span>
+          </label>
+          <span class="toggle-label">Winter</span>
+        </div>
+      </div>
+   </div>  
   <!--Div to display the Map-->
   <div id="viewDiv"></div> 
+
+  <!-- About panel -->
+  <div id="aboutPanel" class="about-panel hidden" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <div class="about-content">
+      <button id="aboutClose" class="about-close" aria-label="Close about">×</button>
+      <h2 id="aboutTitle">About High Cliff Trails</h2>
+      <div class="about-text">
+        <p>High Cliff trails offer different levels of challenge to hikers. All trails are looped and vary in length. Use caution when on steep bluffs or near cliffs. Stay well away from cliffs that are not protected by a barricade or barrier. Stay on marked trails and behind barricades and barriers where they are provided. Watch small children closely. Trail surfaces can become slippery when wet, leaf covered, or where loose gravel may be encountered.</p>
+
+        <p><strong>Butterfly Pond Trail</strong> (0.4-mile east loop and 0.7 mile west loop). The trail starts at the parking lot off Lower Cliff Road and goes around the Butterfly Pond. This interpretive trail is paved for accessibility and features wetland, prairie and forest ecosystems.</p>
+
+        <p><strong>Forest Management Trail</strong> (0.9-mile short loop and 1.4-mile long loop). The trail starts at the parking lot east of the pavilion. This trail is marked with yellow dots and compares managed with unmanaged woodlots.</p>
+
+        <p><strong>Horse/Bike Trail</strong> (7.5-mile). The parking lot for this trail system is located near the dump station (vehicles with trailers can park in the gravel horse parking lot). The horse/bike trail system is marked with orange dots and features grassland and hardwood forest ecosystems. Horse and bicycle rentals are not available.</p>
+
+        <p><strong>Indian Mound Trail</strong> (0.6 mile). The trail starts at the Indian Mound lot off park road and near campsite #14 in the family campground. This self-guided, limestone-surfaced interpretive trail showcases effigy mounds built by Native Americans 1,500 years ago.</p>
+
+        <p><strong>Lime Kiln Trail</strong> (0.9-mile short loop and 1.7-mile long loop). The trail starts at the paved parking lot near the lime kiln ruins and at the stairs near campsite #38. The trail is marked with blue dots and traverses part of the Niagara Escarpment State Natural Area. The lakeside segment of Lime Kiln Trail is generally level, while the escarpment segment involves steep climbs, descents and stairs.</p>
+
+        <p><strong>Red Bird Trail</strong> (3.4-mile short loop and 3.8-mile long loop). The trail starts at the family campground, Indian Mounds trailhead and tower parking lot. This mostly level trail is marked with red dots and travels along the top of the Niagara Escarpment. It features panoramic views of Lake Winnebago, historical limestone quarries, the Chief Red Bird statue and the observation tower.</p>
+
+        <p>The <strong>Overlook Trail</strong> is maintained as a ski trail when there is a volunteer available to groom it.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // About panel open/close handlers
+    (function(){
+      const aboutBtn = document.getElementById('aboutBtn');
+      const aboutPanel = document.getElementById('aboutPanel');
+      const aboutClose = document.getElementById('aboutClose');
+      function openAbout(){
+        aboutPanel.classList.remove('hidden');
+        aboutBtn.setAttribute('aria-expanded','true');
+      }
+      function closeAbout(){
+        aboutPanel.classList.add('hidden');
+        aboutBtn.setAttribute('aria-expanded','false');
+      }
+      aboutBtn && aboutBtn.addEventListener('click', openAbout);
+      aboutClose && aboutClose.addEventListener('click', closeAbout);
+      // close on escape
+      document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeAbout(); });
+      // close when clicking outside content
+      aboutPanel && aboutPanel.addEventListener('click', function(e){ if (e.target === aboutPanel) closeAbout(); });
+    })();
+  </script>
 
 </body>
 </html>
