@@ -55,14 +55,15 @@
     "esri/views/MapView",
     "esri/layers/FeatureLayer",
     "esri/layers/ImageryTileLayer",
-	  "esri/widgets/Locate",
-	  "esri/widgets/Compass",
-	  "esri/geometry/Extent",
+    "esri/widgets/Locate",
+    "esri/widgets/Compass",
+    "esri/geometry/Extent",
     "esri/renderers/UniqueValueRenderer",
     "esri/widgets/Legend",
     "esri/widgets/Expand",
-    "esri/widgets/Home"
-  ], function(Map, MapView,FeatureLayer,ImageryTileLayer, Locate, Compass, Extent, UniqueValueRenderer, Legend, Expand, Home) {
+    "esri/widgets/Home",
+    "esri/widgets/Editor"
+  ], function(Map, MapView,FeatureLayer,ImageryTileLayer, Locate, Compass, Extent, UniqueValueRenderer, Legend, Expand, Home, Editor) {
     
     //Create a Map
     var map = new Map({
@@ -86,6 +87,60 @@
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/2",
             
     });
+
+    // Helper: create a simple popupTemplate for a layer after its fields load
+    // titleCandidates: array of field name guesses in priority order
+    // preferredFields: array of preferred fields to include in the popup (ordered)
+    function createPopupTemplate(layer, titleCandidates, preferredFields) {
+      const excludeRe = /shape|geometry|globalid|objectid|season/i;
+      layer.load().then(function() {
+        const fields = layer.fields || [];
+
+        // choose a title field from titleCandidates first, then preferredFields, then fallback
+        let titleField = null;
+        for (let c of (titleCandidates || [])) {
+          if (fields.some(f => f.name.toLowerCase() === c.toLowerCase() && !excludeRe.test(f.name))) { titleField = c; break; }
+        }
+        if (!titleField && preferredFields && preferredFields.length) {
+          const pf = preferredFields.find(p => fields.some(f => f.name.toLowerCase() === p.toLowerCase() && !excludeRe.test(f.name)));
+          if (pf) titleField = pf;
+        }
+        if (!titleField) {
+          const strField = fields.find(f => !excludeRe.test(f.name) && /char|string|text|name|title|label/i.test(f.type + ' ' + f.name));
+          titleField = strField ? strField.name : (fields.find(f=>!/objectid|season/i.test(f.name) && /objectid/i.test(f.name))||{}).name || null;
+        }
+
+        // build a concise fields list for the popup: prefer preferredFields then fill with other non-excluded fields
+        const visible = [];
+        if (preferredFields && preferredFields.length) {
+          for (let p of preferredFields) {
+            const f = fields.find(ff => ff.name.toLowerCase() === p.toLowerCase());
+            if (f && !excludeRe.test(f.name)) visible.push({ fieldName: f.name, label: f.alias || f.name });
+            if (visible.length >= 6) break;
+          }
+        }
+        if (visible.length < 6) {
+          for (let f of fields) {
+            if (visible.some(v => v.fieldName === f.name)) continue;
+            if (excludeRe.test(f.name)) continue;
+            visible.push({ fieldName: f.name, label: f.alias || f.name });
+            if (visible.length >= 6) break;
+          }
+        }
+
+        layer.popupTemplate = {
+          title: titleField ? `{${titleField}}` : layer.title || "Feature",
+          content: [
+            {
+              type: "fields",
+              fieldInfos: visible
+            }
+          ]
+        };
+      }).catch(function(err){
+        console.warn('Unable to create popup for', layer && layer.title, err);
+      });
+    }
 
   // Expose POI color map to outer scope for use by renderer
     const poiColorMap = {
@@ -131,6 +186,9 @@
 
       POIlayer.renderer = poiRenderer;
       try { POIlayer.refresh(); } catch (e) { /* ignore if not applicable */ }
+
+      // create a curated popup for POIs using likely title and preferred fields
+      createPopupTemplate(POIlayer, ['Name','Label','Title','Type','type'], ['Name','Type','Description','Notes','Label']);
     }).catch(function(err){
       console.error('Error loading POI layer to set color renderer', err);
     });
@@ -193,6 +251,16 @@
           width: 1.5,
           style: "short-dash"
         }
+      },
+      {
+        value: "5",
+        label: "Snowmobile Trails",
+        symbol: {
+          type: "simple-line",
+          color: [0,0,0,1],
+          width: 1.5,
+          style: "short-dash"
+        }
       }
     ]}
     );
@@ -204,6 +272,25 @@
         renderer: TrailsRenderer,
         outFields: ["*"]   
     });
+
+    const Concerns = new FeatureLayer({ 
+    // URL to the service
+        title: "Concerns", 
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/Concern/FeatureServer",
+        outFields: ["*"],
+        popupTemplate: {
+          title: "{Type}",
+          content: [
+            {
+              type: "fields",
+              fieldInfos: [
+                { fieldName: "ConcernType", label: "Type" },
+                { fieldName: "Notes", label: "Notes" }
+              ]
+            }
+          ]
+        }
+    }); 
     
 	const ParkingfillSymbol = {
       type: "simple-fill",	  // autocasts as new SimpleFillSymbol()
@@ -213,18 +300,19 @@
         width: .5
       }
     };
-	
+
     const ParkingRenderer = {
       type: "simple", // autocasts as new SimpleRenderer()
       symbol: ParkingfillSymbol
-    };	    
+    };
+
     const ParkingLots = new FeatureLayer({ 
     // URL to the service
         title: "Parking Lots", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/0",
-		    renderer: ParkingRenderer
-            
+		    renderer: ParkingRenderer      
     });
+
     const ParkfillSymbol = {
       type: "simple-fill",	  // autocasts as new SimpleFillSymbol()
 	  style: "none",
@@ -243,7 +331,7 @@
     // URL to the service
         title: "Park Boundary", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/4",
-		  renderer: ParkBoundaryRenderer
+		    renderer: ParkBoundaryRenderer
             
     });
     
@@ -253,6 +341,10 @@
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/1",
             
     });    
+
+  // Add curated popups for Parking and Structure layers
+  //createPopupTemplate(ParkingLots, ['Name','LotName','LOTNAME'], ['Name','LotName','Capacity','Spaces','Surface']);
+  createPopupTemplate(StructurePolygon, ['Name','Title','Label','OBJECTID'], ['Name','Type','Material','YearBuilt','Condition']);
 	
    // Creates locator button 
    const locateBtn = new Locate({
@@ -269,6 +361,7 @@
    view: view
   });
 
+
   // Creates a legend
   const legend = new Legend({
       view: view,
@@ -280,6 +373,14 @@
         {
           layer: POIlayer,
           title: "POIs"
+        },
+        {
+          layer: ParkingLots,
+          title: "Parking Lots"
+        },
+        {
+          layer: StructurePolygon,
+          title: "Structure Polygons"
         }
       ]
   });
@@ -303,13 +404,35 @@
 	
   // Add the legend to the bottom right corner of the view
   view.ui.add(legendExpand, "top-right");
-	
+
+  // Add Editor widget for Concerns layer, nested in Expand and collapsed by default
+  const editor = new Editor({
+    view: view,
+    layerInfos: [
+      {
+        layer: Concerns,
+        enabled: true,
+        fieldConfig: []
+      }
+    ]
+  });
+  const editorExpand = new Expand({
+    expandIcon: "edit",
+    view: view,
+    content: editor,
+    expanded: false
+  });
+  view.ui.add(editorExpand, "top-right");
+
   // add layer to the map
     map.add(ParkBoundary);
     map.add(ParkingLots);
-	  map.add(StructurePolygon);
+    map.add(StructurePolygon);
     map.add(Trails);
     map.add(POIlayer);
+    map.add(Concerns);
+    
+    
     // --- Season filter support for Trails layer ---
     // Use an explicit field name: Season
     const seasonFieldName = "Season";
@@ -323,6 +446,8 @@
 
     // Wait until the Trails layer is loaded to confirm the field exists
     Trails.load().then(function() {
+  // create a curated popup for Trails (use common name fields if present)
+  createPopupTemplate(Trails, ['Name','TrailName','TRAILNAME','NAME'], ['Name','TrailName','TrailType','Length','Surface','Difficulty']);
       const hasField = Trails.fields && Trails.fields.some(ff => ff.name === seasonFieldName);
       const checkbox = document.getElementById('seasonToggle');
       if (!hasField) {
