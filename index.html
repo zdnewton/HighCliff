@@ -62,8 +62,9 @@
     "esri/widgets/Legend",
     "esri/widgets/Expand",
     "esri/widgets/Home",
-    "esri/widgets/Editor"
-  ], function(Map, MapView,FeatureLayer,ImageryTileLayer, Locate, Compass, Extent, UniqueValueRenderer, Legend, Expand, Home, Editor) {
+    "esri/widgets/Editor",
+    "esri/symbols/WebStyleSymbol"
+  ], function(Map, MapView,FeatureLayer,ImageryTileLayer, Locate, Compass, Extent, UniqueValueRenderer, Legend, Expand, Home, Editor, WebStyleSymbol) {
     
     //Create a Map
     var map = new Map({
@@ -80,12 +81,24 @@
     
 	  view.rotation = -15;
 	
+     // Create an NPS-style symbol for a trailhead
+    var trailheadSymbol = new WebStyleSymbol({
+      styleUrl: "https://cdn.arcgis.com/sharing/rest/content/items/36359a4a8f3143b6bf44d5688e007900/data",
+      name: "Campfire Ring" // Example symbol name from the NPS style
+    });
+
+    // Define a renderer for the trailheads layer
+    var trailheadsRenderer = {
+      type: "simple", // Simple renderer for demonstration
+      symbol: trailheadSymbol
+    };
+
     // Create featurelayer from feature service 
     const POIlayer = new FeatureLayer({ 
     // URL to the service
         title: "POIs", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/2",
-            
+        renderer: trailheadsRenderer    
     });
 
     // Helper: create a simple popupTemplate for a layer after its fields load
@@ -498,6 +511,9 @@
   <!--Div to display the Map-->
   <div id="viewDiv"></div> 
 
+  <!-- Report Concern Button -->
+  <button id="reportConcernBtn" class="report-concern-btn" title="Report a concern about the park">Report a Concern</button>
+
   <!-- About panel -->
   <div id="aboutPanel" class="about-panel hidden" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
     <div class="about-content">
@@ -543,6 +559,14 @@
       document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeAbout(); });
       // close when clicking outside content
       aboutPanel && aboutPanel.addEventListener('click', function(e){ if (e.target === aboutPanel) closeAbout(); });
+    })();
+
+    // Report Concern button handler
+    (function(){
+      const reportBtn = document.getElementById('reportConcernBtn');
+      reportBtn && reportBtn.addEventListener('click', function(){
+        window.open('https://arcg.is/1qmGjn1', '_blank');
+      });
     })();
   </script>
 
