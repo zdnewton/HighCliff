@@ -353,7 +353,26 @@
         title: "Structure Polygons", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/1",
             
-    });    
+    });
+    
+  const concern = new FeatureLayer({ 
+    // URL to the service
+        title: "Concerns", 
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/High_Cliff_Report_a_Concern_view/FeatureServer",
+        outFields: ["*"],
+        popupTemplate: {
+          title: "{Type}",
+          content: [
+            {
+              type: "fields",
+              fieldInfos: [
+                { fieldName: "ConcernType", label: "Type" },
+                { fieldName: "Notes", label: "Notes" }
+              ]
+            }
+          ]
+        }
+    });
 
   // Add curated popups for Parking and Structure layers
   //createPopupTemplate(ParkingLots, ['Name','LotName','LOTNAME'], ['Name','LotName','Capacity','Spaces','Surface']);
@@ -394,6 +413,10 @@
         {
           layer: StructurePolygon,
           title: "Structure Polygons"
+        },
+        {
+          layer: concern,
+          title: "Reported Concerns"
         }
       ]
   });
@@ -443,7 +466,7 @@
     map.add(StructurePolygon);
     map.add(Trails);
     map.add(POIlayer);
-    map.add(Concerns);
+    map.add(concern);
     
     
     // --- Season filter support for Trails layer ---
