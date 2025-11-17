@@ -8,8 +8,9 @@
   
   <!--Calls ArcGIS API's CSS file and JS Library-->
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/dark/main.css">
-  <script src="https://js.arcgis.com/4.31/"></script>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.33/esri/themes/dark/main.css">
+  <script type="module" src="https://js.arcgis.com/calcite-components/3.3.3/calcite.esm.js"></script>
+  <script src="https://js.arcgis.com/4.33/"></script>
   
 <!--css to make the map full screen and position the nav -->
   <style>
@@ -62,13 +63,20 @@
     "esri/widgets/Legend",
     "esri/widgets/Expand",
     "esri/widgets/Home",
-    "esri/widgets/Editor",
-    "esri/symbols/WebStyleSymbol"
-  ], function(Map, MapView,FeatureLayer,ImageryTileLayer, Locate, Compass, Extent, UniqueValueRenderer, Legend, Expand, Home, Editor, WebStyleSymbol) {
+    "esri/symbols/WebStyleSymbol",
+    "esri/Basemap"
+  ], function(Map, MapView,FeatureLayer,ImageryTileLayer, Locate, Compass, Extent, UniqueValueRenderer, Legend, Expand, Home, WebStyleSymbol, Basemap) {
     
+    // Load basemap from ArcGIS online portal
+    const basemap = new Basemap({
+      portalItem: {
+        id: "dc9d20a9725c4ebaaa84da75a8bb0214",
+      }
+    });
+
     //Create a Map
     var map = new Map({
-      basemap: "topo" //Basemap layer
+      basemap: basemap //Basemap layer
     });
     
     //Create a MapView
@@ -80,25 +88,12 @@
     });
     
 	  view.rotation = -15;
-	
-     // Create an NPS-style symbol for a trailhead
-    var trailheadSymbol = new WebStyleSymbol({
-      styleUrl: "https://cdn.arcgis.com/sharing/rest/content/items/36359a4a8f3143b6bf44d5688e007900/data",
-      name: "Campfire Ring" // Example symbol name from the NPS style
-    });
-
-    // Define a renderer for the trailheads layer
-    var trailheadsRenderer = {
-      type: "simple", // Simple renderer for demonstration
-      symbol: trailheadSymbol
-    };
 
     // Create featurelayer from feature service 
     const POIlayer = new FeatureLayer({ 
     // URL to the service
         title: "POIs", 
-        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/2",
-        renderer: trailheadsRenderer    
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/2"  
     });
 
     // Helper: create a simple popupTemplate for a layer after its fields load
@@ -278,27 +273,139 @@
     ]}
     );
 
+
+    const TrailLabelSymbol = {
+    type: "text",
+    color: "black",
+    haloColor: "white",
+    haloSize: "1px",
+    font: {
+      size: 9,
+      family: "Arial"
+    },
+    weight: "bold"
+  };
+
+  // Label class for trails with spacing and scale constraints
+  const TrailLabelClass = {
+    symbol: TrailLabelSymbol,
+    labelExpressionInfo: {
+      expression: "$feature.Name + ' ' + Round($feature.Miles, 2) + ' Mi'"
+    },
+    labelPlacement: "above-along",
+    repeatLabel: false,
+    deconflictionStrategy: "dynamic",
+    repeatDistance: 1609, // Prevent labels within 1 mile (1609 meters) of each other
+    maxScale: 500, // Show labels when zoomed to 1:500 or closer
+    minScale: 0 // No minimum scale limit
+  };
+  
     const Trails = new FeatureLayer({ 
     // URL to the service
         title: "Trails", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/3",
         renderer: TrailsRenderer,
-        outFields: ["*"]   
+        outFields: ["*"],
+        labelingInfo: [TrailLabelClass],
+        labelsEnabled: true,   
     });
+    const roadRenderer = new UniqueValueRenderer({
+      field: "RoadType",
+      defaultLabel: "Other",
+      defaultSymbol: {
+        type: "simple-line",
+        color: [150, 150, 150, 1],
+        width: 1.5
+      },
+      uniqueValueInfos: [
+      {
+        value: "0",
+        label: "Park Roads",
+        symbol: {
+          type: "simple-line",
+          color: [0,0,0,.5],
+          width: 2
+        },
+      },
+      {
+        value: "1",
+        label: "Service Roads",
+        symbol: {
+          type: "simple-line",
+          color: [255,0,0,.25],
+          width: 2
+        }
+      },
+      {
+        value: "2",
+        label: "Campground Roads",
+        symbol: {
+          type: "simple-line",
+          color: [125,125,125,.25],
+          width: 2
+        }
+      },
+      {
+        value: "4",
+        label: "Not Park Roads",
+        symbol: {
+          type: "simple-line",
+          color: [100,100,100,.25],
+          width: 2
+        }
+      }]
+    });
+
+    const roadLabelSymbol = {
+      type: "text",
+      color: "#333",
+      haloColor: "#fff",
+      haloSize: "1px",
+      font: {
+        size: 9,
+        family: "Arial"
+      }
+    };
+
+    // Label class for roads (excludes RoadType 4 - Not Park Roads)
+    const roadLabelClass = {
+      symbol: roadLabelSymbol,
+      labelExpressionInfo: {
+        expression: "$feature.Name"
+      },
+      labelPlacement: "above-along",
+      where: "RoadType <> 4"
+    };
+
+    // Load Roads feature layer from ArcGIS service with labeling
+    const Roads = new FeatureLayer({
+        title: "Roads", 
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/ParkRoads_view/FeatureServer",
+        renderer: roadRenderer,
+        outFields: ["*"],
+        labelingInfo: [roadLabelClass],
+        labelsEnabled: true
+    });
+    const concernRenderer = {
+      type: "simpleRenderer",
+      name: "school",
+      styleName: "Esri2DPointSymbolsStyle"
+    };
 
     const Concerns = new FeatureLayer({ 
     // URL to the service
         title: "Concerns", 
-        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/Concern/FeatureServer",
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/High_Cliff_Report_a_Concern_view/FeatureServer",
         outFields: ["*"],
+        renderer: concernRenderer,
         popupTemplate: {
           title: "{Type}",
           content: [
             {
               type: "fields",
               fieldInfos: [
-                { fieldName: "ConcernType", label: "Type" },
-                { fieldName: "Notes", label: "Notes" }
+                { fieldName: "type_of_concern", label: "Type" },
+                { fieldName: "additional_notes_for_park_staff", label: "Notes" }
               ]
             }
           ]
@@ -328,7 +435,7 @@
 
     const ParkfillSymbol = {
       type: "simple-fill",	  // autocasts as new SimpleFillSymbol()
-	  style: "none",
+	    style: "none",
       outline: {
         color: [0, 0, 0], // Black outline
         width: 2
@@ -353,26 +460,26 @@
         title: "Structure Polygons", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/1",
             
-    });
-    
-  const concern = new FeatureLayer({ 
-    // URL to the service
-        title: "Concerns", 
-        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/High_Cliff_Report_a_Concern_view/FeatureServer",
-        outFields: ["*"],
-        popupTemplate: {
-          title: "{Type}",
-          content: [
-            {
-              type: "fields",
-              fieldInfos: [
-                { fieldName: "ConcernType", label: "Type" },
-                { fieldName: "Notes", label: "Notes" }
-              ]
-            }
-          ]
+    });    
+
+    const HydrologyRenderer = {
+      type: "simple", // autocasts as new SimpleRenderer()
+      symbol: {
+        type: "simple-fill",	  // autocasts as new SimpleFillSymbol()
+        color: [0, 162, 232, .5],
+        outline: {
+          color: [0, 0, 128, .5], // Dark blue outline
+          width: 1
         }
-    });
+      }
+    };	
+
+  const Water = new FeatureLayer({ 
+    // URL to the service
+        title: "Hydrology", 
+        url:"https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/AreaHydrology/FeatureServer",
+        renderer: HydrologyRenderer   
+    });       
 
   // Add curated popups for Parking and Structure layers
   //createPopupTemplate(ParkingLots, ['Name','LotName','LOTNAME'], ['Name','LotName','Capacity','Spaces','Surface']);
@@ -415,8 +522,12 @@
           title: "Structure Polygons"
         },
         {
-          layer: concern,
-          title: "Reported Concerns"
+          layer: Roads,
+          title: "Roads"
+        },
+        {
+          layer: Concerns,
+          title: "Concerns"
         }
       ]
   });
@@ -439,34 +550,17 @@
   view.ui.add(locateBtn, { position: "top-left", index: 2 });
 	
   // Add the legend to the bottom right corner of the view
-  view.ui.add(legendExpand, "top-right");
-
-  // Add Editor widget for Concerns layer, nested in Expand and collapsed by default
-  const editor = new Editor({
-    view: view,
-    layerInfos: [
-      {
-        layer: Concerns,
-        enabled: true,
-        fieldConfig: []
-      }
-    ]
-  });
-  const editorExpand = new Expand({
-    expandIcon: "edit",
-    view: view,
-    content: editor,
-    expanded: false
-  });
-  view.ui.add(editorExpand, "top-right");
+  view.ui.add(legendExpand, "top-left");
 
   // add layer to the map
+    map.add(Water);
     map.add(ParkBoundary);
     map.add(ParkingLots);
     map.add(StructurePolygon);
+    map.add(Roads);
     map.add(Trails);
     map.add(POIlayer);
-    map.add(concern);
+    map.add(Concerns);
     
     
     // --- Season filter support for Trails layer ---

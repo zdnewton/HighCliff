@@ -76,12 +76,12 @@
 /* Report Concern Button */
 .report-concern-btn {
   position: fixed;
-  bottom: 20px;
-  left: 20px;
+  top: 80px;
+  right: 5px;
   background: #0b5aa5;
   color: #fff;
   border: none;
-  padding: 12px 20px;
+  padding: 5px 10px;
   border-radius: 6px;
   cursor: pointer;
   font-weight: 600;
@@ -89,11 +89,13 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   z-index: 9990;
   transition: background-color 0.2s ease;
+  opacity: 0.5;
 }
 
 .report-concern-btn:hover {
   background: #084a8f;
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  opacity: 1;
 }
 
 .report-concern-btn:active {
