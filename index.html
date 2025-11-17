@@ -8,9 +8,9 @@
   
   <!-- Load custom styles, ArcGIS API dark theme, and ArcGIS JavaScript library v4.31 -->
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://js.arcgis.com/4.33/esri/themes/dark/main.css">
+  <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/dark/main.css">
   <script type="module" src="https://js.arcgis.com/calcite-components/3.3.3/calcite.esm.js"></script>
-  <script src="https://js.arcgis.com/4.33/"></script>
+  <script src="https://js.arcgis.com/4.31/"></script>
   
 <!--CSS to style the map view and position the navigation bar -->
   <style>
@@ -89,10 +89,10 @@
 	  view.rotation = -15;
 
     // Create featurelayer from feature service 
-    const POIlayer = new FeatureLayer({ 
-        title: "POIs", 
-        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/2"  
-    });
+  const POIlayer = new FeatureLayer({ 
+    title: "POIs", 
+    url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/2"
+  });
 
     // Helper function to dynamically create popup templates for a layer
     // Selects a title field from candidates, excludes system fields (geometry, OBJECTID, Season),
@@ -151,61 +151,63 @@
       });
     }
 
+    // (removed unused test POI symbol variables)
+
   // Map of POI type codes to labels and colors for the renderer
-    const poiColorMap = {
-      0: { label: 'Tower', color: '#6b6b6b' },
-      1: { label: 'Picnic Area', color: '#2e8b57' },
-      2: { label: 'Pet Picnic Area', color: '#2e8b57' },
-      3: { label: 'Playground Equipment', color: '#8a2be2' },
-      4: { label: 'Community Fire Ring', color: '#d62728' },
-      5: { label: 'Restored Silo', color: '#a0522d' },
-      6: { label: 'Flush Toilet', color: '#1f77b4' },
-      7: { label: 'Vault Toilet', color: '#1f77b4' },
-      8: { label: 'Shower', color: '#00bfff' },
-      9: { label: 'Trailer Dumping Station', color: '#ff7f0e' },
-      10: { label: 'Water Fountain', color: '#4cc3d9' },
-      11: { label: 'Scenic Overlook', color: '#bcbd22' },
-      12: { label: 'Emergency Access', color: '#7f0000' }
-  };
+    const poiSymbols = {
+      0: { label: "Point of interest", name: "Point of interest"},
+      1: { label: 'Picnic area', name: "Picnic area"},
+      2: { label: 'Pet Picnic Area', name: "Pets on leash 1"},
+      3: { label: 'Playground Equipment', name: "Playground"},
+      4: { label: 'Community Fire Ring', name: "Campfire ring"},
+      6: { label: 'Flush Toilets', name: "Flush toilet" },
+      7: { label: 'Vault Toilets', name: "Vault Toilet" },
+      8: { label: 'Showers', name: "Showers" },
+      9: { label: 'Trailer Dumping Station', name: "Trailer site" },
+      10: { label: 'Water Fountain', name: "Water hookup" },
+      11: { label: 'Scenic Overlook', name: "Viewing area" },
+      12: { label: 'Emergency Access', name: "SafetyCautionAlerts" },
+      13: { label: 'Park Buildings', name: "Visitor center" }
+    };  
 
     // POI Label Symbol
     const poiLabelSymbol = {
       type: "text",
       color: "#333",
-      haloColor: "#fff",
-      haloSize: "1px",
       font: {
         size: 9,
-        family: "Arial"
+        family: "Arial",
+        weight: "bold"
       }
     };
 
-    // POI Label Class
+    // POI Label Class - only label features that have a non-empty Name
     const poiLabelClass = {
       symbol: poiLabelSymbol,
       labelExpressionInfo: {
-        expression: "$feature.Name"
-      }
+        expression: "IIF(IsEmpty(Trim($feature.Name)), '', $feature.Name)"
+      },
+      labelPlacement: "above-center",
+      where: "Name IS NOT NULL AND Name <> ''"
     };
 
     POIlayer.load().then(function() {
       // Find the POI type field
       const field = (POIlayer.fields || []).find(f => /type|category|poi|class/i.test(f.name));
       const fieldName = field ? field.name : 'Type';
+      // Remove zoom threshold logic: POIs always visible; rely on map scale performance naturally.
 
       // Create unique value infos from the POI color map
-      const uniqueInfos = Object.keys(poiColorMap).map(function(key) {
-        const info = poiColorMap[key];
+      const uniqueInfos = Object.keys(poiSymbols).map(function(key) {
+        const info = poiSymbols[key];
         return {
           value: Number(key),
           label: info.label,
-          symbol: {
-            type: 'simple-marker',
-            style: 'circle',
-            color: info.color,
-            size: '10px',
-            outline: { color: '#ffffff', width: 1 }
-          }
+          // Use WebStyleSymbol correctly for 2D point symbols
+          symbol: new WebStyleSymbol({
+            name: info.name,
+            styleUrl: "https://cdn.arcgis.com/sharing/rest/content/items/36359a4a8f3143b6bf44d5688e007900/data"
+          })
         };
       });
 
@@ -430,7 +432,9 @@
       name: "Fire Response Restrictions - Other",
       styleUrl: "https://cdn.arcgis.com/sharing/rest/content/items/6eeef46c653b40c9bda04f9bed913b70/data"
     });
+    
     const concernRenderer = { type: "simple", symbol: concernSymbol };
+
     const Concerns = new FeatureLayer({
       title: "Concerns",
       url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/High_Cliff_Report_a_Concern_view/FeatureServer",
