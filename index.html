@@ -55,18 +55,16 @@
     "esri/Map",
     "esri/views/MapView",
     "esri/layers/FeatureLayer",
-    "esri/layers/ImageryTileLayer",
     "esri/widgets/Locate",
     "esri/widgets/Compass",
     "esri/widgets/ScaleBar",
-    "esri/geometry/Extent",
     "esri/renderers/UniqueValueRenderer",
     "esri/widgets/Legend",
     "esri/widgets/Expand",
     "esri/widgets/Home",
     "esri/symbols/WebStyleSymbol",
     "esri/Basemap"
-  ], function(Map, MapView,FeatureLayer,ImageryTileLayer, Locate, Compass, Extent, UniqueValueRenderer, Legend, Expand, Home, WebStyleSymbol, Basemap) {
+  ], function(Map, MapView, FeatureLayer, Locate, Compass, ScaleBar, UniqueValueRenderer, Legend, Expand, Home, WebStyleSymbol, Basemap) {
     
     // Load basemap from ArcGIS online portal
     const basemap = new Basemap({
@@ -126,12 +124,12 @@
         if (preferredFields && preferredFields.length) {
           for (let p of preferredFields) {
             const f = fields.find(ff => ff.name.toLowerCase() === p.toLowerCase());
-            if (f && !excludeRe.test(f.name)) visible.push({ fieldName: f.name, label: f.alias || f.name });
-            if (visible.length >= 6) break;
-          }
-        }
-        if (visible.length < 6) {
-          for (let f of fields) {
+                // Load basemap from ArcGIS online portal
+                const basemap = new Basemap({
+                  portalItem: {
+                    id: "dc9d20a9725c4ebaaa84da75a8bb0214"
+                  }
+                });
             if (visible.some(v => v.fieldName === f.name)) continue;
             if (excludeRe.test(f.name)) continue;
             visible.push({ fieldName: f.name, label: f.alias || f.name });
@@ -223,8 +221,21 @@
       POIlayer.labelsEnabled = true;
       try { POIlayer.refresh(); } catch (e) { /* ignore if not applicable */ }
 
-      // Create curated popup with Name and Type fields
-      createPopupTemplate(POIlayer, ['Name','Label','Title','Type','type'], ['Name','Type','Description','Notes','Label']);
+      // Define a custom popup directly for POI layer (Name, Type, Description, Notes)
+      POIlayer.popupTemplate = {
+        title: "{Name}",
+        content: [
+          {
+            type: "fields",
+            fieldInfos: [
+              { fieldName: "Name", label: "Name" },
+              { fieldName: fieldName, label: "Type" },
+              { fieldName: "Description", label: "Description" },
+              { fieldName: "Notes", label: "Notes" }
+            ].filter(function(fi){ return !!fi.fieldName; })
+          }
+        ]
+      };
     }).catch(function(err){
       console.error('Error loading POI layer to set color renderer', err);
     });
@@ -414,126 +425,30 @@
         labelingInfo: [roadLabelClass],
         labelsEnabled: true
     });
-    const concernRenderer = {
-      type: "simpleRenderer",
-      name: "school",
-      styleName: "Esri2DPointSymbolsStyle"
-    };
-
-    const Concerns = new FeatureLayer({ 
-    // URL to the service
-        title: "Concerns", 
-        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/High_Cliff_Report_a_Concern_view/FeatureServer",
-        outFields: ["*"],
-        renderer: concernRenderer,
-        popupTemplate: {
-          title: "{Name}",
-          content: [
-            {
-              type: "fields",
-              fieldInfos: [
-                { fieldName: "type_of_concern", label: "Type" },
-                { fieldName: "additional_notes_for_park_staff", label: "Notes" }
-              ]
-            }
-          ]
-        }
-    });
-
-    const roadRenderer = new UniqueValueRenderer({
-      field: "RoadType",
-      defaultLabel: "Other",
-      defaultSymbol: {
-        type: "simple-line",
-        color: [150, 150, 150, 1],
-        width: 1.5
-      },
-      uniqueValueInfos: [
-      {
-        value: "0",
-        label: "Park Roads",
-        symbol: {
-          type: "simple-line",
-          color: [0,0,0,.5],
-          width: 2
-        },
-      },
-      {
-        value: "1",
-        label: "Service Roads",
-        symbol: {
-          type: "simple-line",
-          color: [255,0,0,.25],
-          width: 2
-        }
-      },
-      {
-        value: "2",
-        label: "Campground Roads",
-        symbol: {
-          type: "simple-line",
-          color: [125,125,125,.25],
-          width: 2
-        }
-      },
-      {
-        value: "4",
-        label: "Not Park Roads",
-        symbol: {
-          type: "simple-line",
-          color: [100,100,100,.25],
-          width: 2
-        }
-      }]
-    });
-
-    const roadLabelSymbol = {
-      type: "text",
-      color: "#333",
-      haloColor: "#fff",
-      haloSize: "1px",
-      font: {
-        size: 9,
-        family: "Arial"
-      }
-    };
-
-    // Label class for roads (excludes RoadType 4 - Not Park Roads)
-    const roadLabelClass = {
-      symbol: roadLabelSymbol,
-      labelExpressionInfo: {
-        expression: "$feature.Name"
-      },
-      labelPlacement: "above-along",
-      where: "RoadType <> 4"
-    };
-
-    // Load Roads feature layer from ArcGIS service with labeling
-    const Roads = new FeatureLayer({
-        title: "Roads", 
-        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/ParkRoads_view/FeatureServer",
-        renderer: roadRenderer,
-        outFields: ["*"],
-        labelingInfo: [roadLabelClass],
-        labelsEnabled: true
-    });
-    
-    // Referencing a web style via styleName
-    const webStyleSymbol = new WebStyleSymbol({
+    // Concerns layer (reported issues) using a web style symbol
+    const concernSymbol = new WebStyleSymbol({
       name: "Fire Response Restrictions - Other",
       styleUrl: "https://cdn.arcgis.com/sharing/rest/content/items/6eeef46c653b40c9bda04f9bed913b70/data"
     });
-
-    const concernRenderer = {
-      type: "simple", // autocasts as new SimpleRenderer()
-      symbol: webStyleSymbol
-    };
-
+    const concernRenderer = { type: "simple", symbol: concernSymbol };
     const Concerns = new FeatureLayer({
-      titile: "Concern",
+      title: "Concerns",
       url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/High_Cliff_Report_a_Concern_view/FeatureServer",
-      renderer: concernRenderer
-    })
+      renderer: concernRenderer,
+      outFields: ["*"],
+      popupTemplate: {
+        title: "{Name}",
+        content: [{
+          type: "fields",
+          fieldInfos: [
+            { fieldName: "type_of_concern", label: "Type" },
+            { fieldName: "additional_notes_for_park_staff", label: "Notes" }
+          ]
+        }]
+      }
+    });
+
+    // (Duplicate Roads and Concerns layer blocks removed)
 
     // Define the fill symbol for parking lots (gray with black outline)
     const ParkingfillSymbol = {
@@ -684,15 +599,15 @@
   view.ui.add(legendExpand, "top-left");
 
   // add layer to the map
-    map.add(Water);
-    map.add(ParkBoundary);
-    map.add(ParkingLots);
-    map.add(Roads);
-    map.add(StructurePolygon);
-    map.add(Roads);
-    map.add(Trails);
-    map.add(POIlayer);
-    map.add(Concerns);
+  // Add layers once (removed duplicates)
+  map.add(Water);
+  map.add(ParkBoundary);
+  map.add(ParkingLots);
+  map.add(Roads);
+  map.add(StructurePolygon);
+  map.add(Trails);
+  map.add(POIlayer);
+  map.add(Concerns);
     
     // Trail label visibility is controlled by the TrailLabelClass minScale property
     // Labels will only appear when the map scale is 1:500 or closer (zoomed in)
