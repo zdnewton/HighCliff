@@ -6,12 +6,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="description" content="" />
   
-  <!--Calls ArcGIS API's CSS file and JS Library-->
+  <!-- Load custom styles, ArcGIS API dark theme, and ArcGIS JavaScript library v4.31 -->
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/dark/main.css">
   <script src="https://js.arcgis.com/4.31/"></script>
   
-<!--css to make the map full screen and position the nav -->
+<!--CSS to style the map view and position the navigation bar -->
   <style>
     html, body {
       margin: 0;
@@ -57,49 +57,60 @@
     "esri/layers/ImageryTileLayer",
     "esri/widgets/Locate",
     "esri/widgets/Compass",
+    "esri/widgets/ScaleBar",
     "esri/geometry/Extent",
     "esri/renderers/UniqueValueRenderer",
     "esri/widgets/Legend",
     "esri/widgets/Expand",
     "esri/widgets/Home",
-    "esri/widgets/Editor"
-  ], function(Map, MapView,FeatureLayer,ImageryTileLayer, Locate, Compass, Extent, UniqueValueRenderer, Legend, Expand, Home, Editor) {
+    "esri/Basemap",
+    "esri/style/WebStyleSymbol"
+  ], function(Map, MapView,FeatureLayer,ImageryTileLayer, Locate, Compass, ScaleBar, Extent, UniqueValueRenderer, Legend, Expand, Home, Basemap, WebStyleSymbol) {
     
-    //Create a Map
-    var map = new Map({
-      basemap: "topo" //Basemap layer
-    });
-    
-    //Create a MapView
-    var view = new MapView({
-      container: "viewDiv", //Div element
-      map: map, //Map reference
-      center: [-88.29300,44.1541], //Long, Lat
-      zoom: 14 //Zoom level
-    });
-    
-	  view.rotation = -15;
-	
-    // Create featurelayer from feature service 
-    const POIlayer = new FeatureLayer({ 
-    // URL to the service
-        title: "POIs", 
-        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/2",
-            
+    // Load basemap from ArcGIS online portal
+    const basemap = new Basemap({
+      portalItem: {
+        id: "dc9d20a9725c4ebaaa84da75a8bb0214",
+      }
     });
 
-    // Helper: create a simple popupTemplate for a layer after its fields load
-    // titleCandidates: array of field name guesses in priority order
-    // preferredFields: array of preferred fields to include in the popup (ordered)
+    // Create the map with the basemap
+    var map = new Map({
+      basemap: basemap
+    });
+    
+    // Create the map view with center point and initial zoom level
+    var view = new MapView({
+      container: "viewDiv",
+      map: map,
+      center: [-88.29300, 44.1541],
+      zoom: 14
+    });
+    
+    // Rotate the view 15 degrees for better visual presentation
+    view.rotation = -15;
+	
+    // Load POI feature layer from ArcGIS service
+    const POIlayer = new FeatureLayer({ 
+        title: "POIs", 
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/2"
+    });
+
+    // Helper function to dynamically create popup templates for a layer
+    // Selects a title field from candidates, excludes system fields (geometry, OBJECTID, Season),
+    // and includes preferred fields in the popup (max 6 fields)
     function createPopupTemplate(layer, titleCandidates, preferredFields) {
       const excludeRe = /shape|geometry|globalid|objectid|season/i;
       layer.load().then(function() {
         const fields = layer.fields || [];
 
-        // choose a title field from titleCandidates first, then preferredFields, then fallback
+        // Find the best title field from candidates and preferred fields
         let titleField = null;
         for (let c of (titleCandidates || [])) {
-          if (fields.some(f => f.name.toLowerCase() === c.toLowerCase() && !excludeRe.test(f.name))) { titleField = c; break; }
+          if (fields.some(f => f.name.toLowerCase() === c.toLowerCase() && !excludeRe.test(f.name))) { 
+            titleField = c; 
+            break; 
+          }
         }
         if (!titleField && preferredFields && preferredFields.length) {
           const pf = preferredFields.find(p => fields.some(f => f.name.toLowerCase() === p.toLowerCase() && !excludeRe.test(f.name)));
@@ -107,10 +118,10 @@
         }
         if (!titleField) {
           const strField = fields.find(f => !excludeRe.test(f.name) && /char|string|text|name|title|label/i.test(f.type + ' ' + f.name));
-          titleField = strField ? strField.name : (fields.find(f=>!/objectid|season/i.test(f.name) && /objectid/i.test(f.name))||{}).name || null;
+          titleField = strField ? strField.name : (fields.find(f => !/objectid|season/i.test(f.name) && /objectid/i.test(f.name)) || {}).name || null;
         }
 
-        // build a concise fields list for the popup: prefer preferredFields then fill with other non-excluded fields
+        // Build a list of fields to show in popup, prioritizing preferred fields and excluding system fields
         const visible = [];
         if (preferredFields && preferredFields.length) {
           for (let p of preferredFields) {
@@ -142,16 +153,16 @@
       });
     }
 
-  // Expose POI color map to outer scope for use by renderer
+  // Map of POI type codes to labels and colors for the renderer
     const poiColorMap = {
       0: { label: 'Tower', color: '#6b6b6b' },
       1: { label: 'Picnic Area', color: '#2e8b57' },
-      2: { label: 'Pet Picnic Area', color: '#ff8c00' },
+      2: { label: 'Pet Picnic Area', color: '#2e8b57' },
       3: { label: 'Playground Equipment', color: '#8a2be2' },
       4: { label: 'Community Fire Ring', color: '#d62728' },
       5: { label: 'Restored Silo', color: '#a0522d' },
       6: { label: 'Flush Toilet', color: '#1f77b4' },
-      7: { label: 'Vault Toilet', color: '#17becf' },
+      7: { label: 'Vault Toilet', color: '#1f77b4' },
       8: { label: 'Shower', color: '#00bfff' },
       9: { label: 'Trailer Dumping Station', color: '#ff7f0e' },
       10: { label: 'Water Fountain', color: '#4cc3d9' },
@@ -159,10 +170,32 @@
       12: { label: 'Emergency Access', color: '#7f0000' }
   };
 
+    // POI Label Symbol
+    const poiLabelSymbol = {
+      type: "text",
+      color: "#333",
+      haloColor: "#fff",
+      haloSize: "1px",
+      font: {
+        size: 9,
+        family: "Arial"
+      }
+    };
+
+    // POI Label Class
+    const poiLabelClass = {
+      symbol: poiLabelSymbol,
+      labelExpressionInfo: {
+        expression: "$feature.Name"
+      }
+    };
+
     POIlayer.load().then(function() {
+      // Find the POI type field
       const field = (POIlayer.fields || []).find(f => /type|category|poi|class/i.test(f.name));
       const fieldName = field ? field.name : 'Type';
 
+      // Create unique value infos from the POI color map
       const uniqueInfos = Object.keys(poiColorMap).map(function(key) {
         const info = poiColorMap[key];
         return {
@@ -172,7 +205,7 @@
             type: 'simple-marker',
             style: 'circle',
             color: info.color,
-            size: '12px',
+            size: '10px',
             outline: { color: '#ffffff', width: 1 }
           }
         };
@@ -184,10 +217,13 @@
         uniqueValueInfos: uniqueInfos
       });
 
+      // Apply renderer, enable labels, and create popup template for POI layer
       POIlayer.renderer = poiRenderer;
+      POIlayer.labelingInfo = [poiLabelClass];
+      POIlayer.labelsEnabled = true;
       try { POIlayer.refresh(); } catch (e) { /* ignore if not applicable */ }
 
-      // create a curated popup for POIs using likely title and preferred fields
+      // Create curated popup with Name and Type fields
       createPopupTemplate(POIlayer, ['Name','Label','Title','Type','type'], ['Name','Type','Description','Notes','Label']);
     }).catch(function(err){
       console.error('Error loading POI layer to set color renderer', err);
@@ -195,7 +231,7 @@
 
     const TrailsRenderer = new UniqueValueRenderer({
       field: "TrailType",
-      defaultlabel: "Other",
+      defaultLabel: "Other",
       defaultSymbol: {
         type: "simple-line",
         color: [150, 150, 150, 1],
@@ -227,7 +263,7 @@
         label: "Horse/Biking Trails",
         symbol: {
           type: "simple-line",
-          color: [255,255,0,1],
+          color: [255,200,0,1],
           width: 1.5,
           style: "short-dash"
         }
@@ -265,105 +301,231 @@
     ]}
     );
 
-    const Trails = new FeatureLayer({ 
-    // URL to the service
+  const TrailLabelSymbol = {
+    type: "text",
+    color: "black",
+    haloColor: "white",
+    haloSize: "1px",
+    font: {
+      size: 9,
+      family: "Arial"
+    },
+    weight: "bold"
+  };
+
+  // Label class for trails with spacing and scale constraints
+  const TrailLabelClass = {
+    symbol: TrailLabelSymbol,
+    labelExpressionInfo: {
+      expression: "$feature.Name + ' ' + Round($feature.Miles, 2) + ' Mi'"
+    },
+    labelPlacement: "above-along",
+    repeatLabel: false,
+    deconflictionStrategy: "dynamic",
+    repeatDistance: 1609, // Prevent labels within 1 mile (1609 meters) of each other
+    maxScale: 500, // Show labels when zoomed to 1:500 or closer
+    minScale: 0 // No minimum scale limit
+  };
+
+  // Load Trails feature layer from ArcGIS service with labeling and popup template
+  const Trails = new FeatureLayer({
         title: "Trails", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/3",
         renderer: TrailsRenderer,
-        outFields: ["*"]   
-    });
-
-    const Concerns = new FeatureLayer({ 
-    // URL to the service
-        title: "Concerns", 
-        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/Concern/FeatureServer",
         outFields: ["*"],
+        labelingInfo: [TrailLabelClass],
+        labelsEnabled: true,
         popupTemplate: {
-          title: "{Type}",
+          title: "{Name}",
           content: [
             {
-              type: "fields",
-              fieldInfos: [
-                { fieldName: "ConcernType", label: "Type" },
-                { fieldName: "Notes", label: "Notes" }
-              ]
+              type: "text",
+              text: "<b>Type:</b> {TrailType}<br><b>Miles:</b> {expression/milesRounded}"
+            }
+          ],
+          expressionInfos: [
+            {
+              name: "milesRounded",
+              expression: "Round($feature.Miles, 2)"
             }
           ]
         }
-    }); 
-    
-	const ParkingfillSymbol = {
-      type: "simple-fill",	  // autocasts as new SimpleFillSymbol()
-	    color: [128,128,128,.75],
-      outline: {
-        color: [0, 0, 0, .75], // Black outline
-        width: .5
+    });
+
+    const roadRenderer = new UniqueValueRenderer({
+      field: "RoadType",
+      defaultLabel: "Other",
+      defaultSymbol: {
+        type: "simple-line",
+        color: [150, 150, 150, 1],
+        width: 1.5
+      },
+      uniqueValueInfos: [
+      {
+        value: "0",
+        label: "Park Roads",
+        symbol: {
+          type: "simple-line",
+          color: [0,0,0,.5],
+          width: 2
+        },
+      },
+      {
+        value: "1",
+        label: "Service Roads",
+        symbol: {
+          type: "simple-line",
+          color: [255,0,0,.25],
+          width: 2
+        }
+      },
+      {
+        value: "2",
+        label: "Campground Roads",
+        symbol: {
+          type: "simple-line",
+          color: [125,125,125,.25],
+          width: 2
+        }
+      },
+      {
+        value: "4",
+        label: "Not Park Roads",
+        symbol: {
+          type: "simple-line",
+          color: [100,100,100,.25],
+          width: 2
+        }
+      }]
+    });
+
+    const roadLabelSymbol = {
+      type: "text",
+      color: "#333",
+      haloColor: "#fff",
+      haloSize: "1px",
+      font: {
+        size: 9,
+        family: "Arial"
       }
     };
 
-    const ParkingRenderer = {
+    // Label class for roads (excludes RoadType 4 - Not Park Roads)
+    const roadLabelClass = {
+      symbol: roadLabelSymbol,
+      labelExpressionInfo: {
+        expression: "$feature.Name"
+      },
+      labelPlacement: "above-along",
+      where: "RoadType <> 4"
+    };
+
+    // Load Roads feature layer from ArcGIS service with labeling
+    const Roads = new FeatureLayer({
+        title: "Roads", 
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/ParkRoads_view/FeatureServer",
+        renderer: roadRenderer,
+        outFields: ["*"],
+        labelingInfo: [roadLabelClass],
+        labelsEnabled: true
+    });
+    
+    // Referencing a web style via styleName
+    const webStyleSymbol = new WebStyleSymbol({
+      name: "Fire Response Restrictions - Other",
+      styleUrl: "https://cdn.arcgis.com/sharing/rest/content/items/6eeef46c653b40c9bda04f9bed913b70/data"
+    });
+
+    const concernRenderer = {
       type: "simple", // autocasts as new SimpleRenderer()
+      symbol: webStyleSymbol
+    };
+
+    const Concerns = new FeatureLayer({
+      titile: "Concern",
+      url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/High_Cliff_Report_a_Concern_view/FeatureServer",
+      renderer: concernRenderer
+    })
+
+    // Define the fill symbol for parking lots (gray with black outline)
+    const ParkingfillSymbol = {
+      type: "simple-fill",
+      color: [128, 128, 128, 0.75],
+      outline: {
+        color: [0, 0, 0, 0.75],
+        width: 0.5
+      }
+    };
+
+    // Define the renderer for parking lots
+    const ParkingRenderer = {
+      type: "simple",
       symbol: ParkingfillSymbol
     };
 
-    const ParkingLots = new FeatureLayer({ 
-    // URL to the service
+    // Load Parking Lots feature layer from ArcGIS service
+    const ParkingLots = new FeatureLayer({
         title: "Parking Lots", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/0",
-		    renderer: ParkingRenderer      
+        renderer: ParkingRenderer      
     });
 
+    // Define the fill symbol for park boundary (transparent with bold purple outline for contrast)
     const ParkfillSymbol = {
-      type: "simple-fill",	  // autocasts as new SimpleFillSymbol()
-	  style: "none",
+      type: "simple-fill",
+      style: "none",
       outline: {
-        color: [0, 0, 0], // Black outline
-        width: 2
+        color: [128, 0, 128, 1], // Purple outline
+        width: 3
       }
     };
-	
+    
+    // Define the renderer for park boundary
     const ParkBoundaryRenderer = {
-      type: "simple", // autocasts as new SimpleRenderer()
+      type: "simple",
       symbol: ParkfillSymbol
-    };	
-	
-    const ParkBoundary = new FeatureLayer({ 
-    // URL to the service
+    };    
+    
+    // Load Park Boundary feature layer from ArcGIS service
+    const ParkBoundary = new FeatureLayer({
         title: "Park Boundary", 
         url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/4",
-		    renderer: ParkBoundaryRenderer
-            
+        renderer: ParkBoundaryRenderer
     });
     
-	const StructurePolygon = new FeatureLayer({ 
-    // URL to the service
+    // Load Structure Polygons feature layer from ArcGIS service
+    const StructurePolygon = new FeatureLayer({
         title: "Structure Polygons", 
-        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/1",
-            
+        url: "https://services.arcgis.com/HRPe58bUyBqyyiCt/arcgis/rest/services/HighCliffStatePark_view/FeatureServer/1"
     });    
 
-  // Add curated popups for Parking and Structure layers
-  //createPopupTemplate(ParkingLots, ['Name','LotName','LOTNAME'], ['Name','LotName','Capacity','Spaces','Surface']);
-  createPopupTemplate(StructurePolygon, ['Name','Title','Label','OBJECTID'], ['Name','Type','Material','YearBuilt','Condition']);
-	
-   // Creates locator button 
-   const locateBtn = new Locate({
+    // Create popup template for Structure Polygons with selected fields
+    createPopupTemplate(StructurePolygon, ['Name','Title','Label','OBJECTID'], ['Name','Type','Material','YearBuilt','Condition']);
+    
+    // Create Locate widget to find user's current location
+    const locateBtn = new Locate({
       view: view
     });
 
-  // Create a new Compass widget
- 	const compass = new Compass({
- 		view: view
- 	});
+    // Create Compass widget to display map orientation
+    const compass = new Compass({
+      view: view
+    });
 
-  // Create a Home button to return to the initial extent/viewpoint
-  const homeBtn = new Home({
-   view: view
-  });
+    // Create and add Scale Bar widget showing imperial and metric units
+    const scaleBar = new ScaleBar({
+      view: view,
+      unit: "imperial"
+    });
+    view.ui.add(scaleBar, "bottom-left");
 
+    // Create Home widget to return to the initial map extent
+    const homeBtn = new Home({
+      view: view
+    });
 
-  // Creates a legend
-  const legend = new Legend({
+    // Create Legend widget showing all map layers
+    const legend = new Legend({
       view: view,
       layerInfos: [
         {
@@ -381,81 +543,66 @@
         {
           layer: StructurePolygon,
           title: "Structure Polygons"
+        },
+        {
+          layer: Roads,
+          title: "Roads"
         }
       ]
   });
 
-  // Allows Legend feature to collapse
-  let legendExpand = new Expand({
-    expandIcon: "legend",           // sets icon of widget button
-    view: view,         
-    content: legend,  
-    expanded: false                 // Sets to default collapsed
-  });
+    // Create expandable Legend widget
+    let legendExpand = new Expand({
+      expandIcon: "legend",
+      view: view,         
+      content: legend,  
+      expanded: false
+    });
 
-  
+    // Add Compass widget to bottom-right corner
+    view.ui.add(compass, "bottom-right"); 
+    
+    // Add Home widget above zoom controls in top-left, and Locate button below
+    view.ui.add(homeBtn, { position: "top-left", index: 0 });
+    view.ui.add(locateBtn, { position: "top-left", index: 2 });
+    
+    // Add Legend to top-right corner
+    view.ui.add(legendExpand, "top-right");
 
-  // Add the Compass widget to the bottom-right corner of the view
-  view.ui.add(compass, "bottom-right"); 
-	
-  // Place Home above the built-in zoom controls in the top-left, then zoom, then our locate button
-  view.ui.add(homeBtn, { position: "top-left", index: 0 });
-  view.ui.add(locateBtn, { position: "top-left", index: 2 });
-	
-  // Add the legend to the bottom right corner of the view
-  view.ui.add(legendExpand, "top-right");
-
-  // Add Editor widget for Concerns layer, nested in Expand and collapsed by default
-  const editor = new Editor({
-    view: view,
-    layerInfos: [
-      {
-        layer: Concerns,
-        enabled: true,
-        fieldConfig: []
-      }
-    ]
-  });
-  const editorExpand = new Expand({
-    expandIcon: "edit",
-    view: view,
-    content: editor,
-    expanded: false
-  });
-  view.ui.add(editorExpand, "top-right");
-
-  // add layer to the map
+    // Add all layers to the map
     map.add(ParkBoundary);
     map.add(ParkingLots);
+    map.add(Roads);
     map.add(StructurePolygon);
     map.add(Trails);
     map.add(POIlayer);
     map.add(Concerns);
     
+    // Trail label visibility is controlled by the TrailLabelClass minScale property
+    // Labels will only appear when the map scale is 1:500 or closer (zoomed in)
     
-    // --- Season filter support for Trails layer ---
-    // Use an explicit field name: Season
+    // Season filter support for Trails layer
+    // Filters Trails to show summer (Season 0 or 1) or winter (Season 0 or 2) trails
     const seasonFieldName = "Season";
 
     function setSeasonFilter(season) {
-      // Season is stored as integers: 0 = Both, 1 = Summer, 2 = Winter
+      // Build the filter expression for Season field (integer codes: 0=Both, 1=Summer, 2=Winter)
       const allowed = season.toLowerCase() === 'summer' ? '(0,1)' : '(0,2)';
-      // numeric comparison; no UPPER needed
       Trails.definitionExpression = `"${seasonFieldName}" IN ${allowed}`;
     }
 
-    // Wait until the Trails layer is loaded to confirm the field exists
+    // After Trails layer loads, verify the Season field exists and wire up the toggle
     Trails.load().then(function() {
-  // create a curated popup for Trails (use common name fields if present)
-  createPopupTemplate(Trails, ['Name','TrailName','TRAILNAME','NAME'], ['Name','TrailName','TrailType','Length','Surface','Difficulty']);
       const hasField = Trails.fields && Trails.fields.some(ff => ff.name === seasonFieldName);
       const checkbox = document.getElementById('seasonToggle');
+      
       if (!hasField) {
         console.warn(`Field '${seasonFieldName}' not found on Trails layer; season toggle disabled.`);
         if (checkbox) checkbox.disabled = true;
         return;
       }
-      // default to Summer (unchecked = summer)
+      
+      // Initialize to Summer (unchecked) and wire the toggle to filter Trails
       if (checkbox) {
         checkbox.checked = false;
         setSeasonFilter('summer');
@@ -524,25 +671,37 @@
   </div>
 
   <script>
-    // About panel open/close handlers
+    // About panel open/close handlers and keyboard/click-outside support
     (function(){
       const aboutBtn = document.getElementById('aboutBtn');
       const aboutPanel = document.getElementById('aboutPanel');
       const aboutClose = document.getElementById('aboutClose');
+      
       function openAbout(){
         aboutPanel.classList.remove('hidden');
-        aboutBtn.setAttribute('aria-expanded','true');
+        aboutBtn.setAttribute('aria-expanded', 'true');
       }
+      
       function closeAbout(){
         aboutPanel.classList.add('hidden');
-        aboutBtn.setAttribute('aria-expanded','false');
+        aboutBtn.setAttribute('aria-expanded', 'false');
       }
+      
+      // Open About panel on button click
       aboutBtn && aboutBtn.addEventListener('click', openAbout);
+      
+      // Close About panel on close button click
       aboutClose && aboutClose.addEventListener('click', closeAbout);
-      // close on escape
-      document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeAbout(); });
-      // close when clicking outside content
-      aboutPanel && aboutPanel.addEventListener('click', function(e){ if (e.target === aboutPanel) closeAbout(); });
+      
+      // Close About panel on Escape key
+      document.addEventListener('keydown', function(e){ 
+        if (e.key === 'Escape') closeAbout(); 
+      });
+      
+      // Close About panel when clicking outside content area
+      aboutPanel && aboutPanel.addEventListener('click', function(e){ 
+        if (e.target === aboutPanel) closeAbout(); 
+      });
     })();
   </script>
 
