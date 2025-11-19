@@ -349,7 +349,23 @@
         outFields: ["*"],
         labelingInfo: [TrailLabelClass],
         labelsEnabled: true,   
-    });
+        popupTemplate: {
+                  title: "{Name}",
+                  content: [
+                    {
+                      type: "text",
+                      text: "<b>Type:</b> {TrailType}<br><b>Miles:</b> {expression/milesRounded}"
+                    }
+                  ],
+                  expressionInfos: [
+                    {
+                      name: "milesRounded",
+                      expression: "Round($feature.Miles, 2)"
+                    }
+                  ]
+                }
+            });
+
     const roadRenderer = new UniqueValueRenderer({
       field: "RoadType",
       defaultLabel: "Other",
