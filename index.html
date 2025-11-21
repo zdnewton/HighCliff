@@ -195,7 +195,14 @@
       // Find the POI type field
       const field = (POIlayer.fields || []).find(f => /type|category|poi|class/i.test(f.name));
       const fieldName = field ? field.name : 'Type';
-      // Remove zoom threshold logic: POIs always visible; rely on map scale performance naturally.
+
+      // Show POIs only when zoomed in at least 2 levels from initial (14 → 16+)
+      const INITIAL_ZOOM = 14;
+      const POI_MIN_ZOOM = INITIAL_ZOOM + 2;
+      POIlayer.visible = false; // Start hidden
+      view.watch('zoom', function(z){
+        POIlayer.visible = z >= POI_MIN_ZOOM;
+      });
 
       // Create unique value infos from the POI color map
       const uniqueInfos = Object.keys(poiSymbols).map(function(key) {
